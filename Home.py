@@ -38,12 +38,12 @@ def sog(df_diff, df_growth):
 
 
 
-def loading_first(kode,conn):
+def loading_first(kode,_conn):
     
     s_adhb = f'{kode}_adhb' 
     s_adhk = f'{kode}_adhk'
-    df_adhb = pd.DataFrame(conn.read(worksheet=s_adhb,rows=18))
-    df_adhk = pd.DataFrame(conn.read(worksheet=s_adhk,rows=18))
+    df_adhb = pd.DataFrame(_conn.read(worksheet=s_adhb,rows=18))
+    df_adhk = pd.DataFrame(_conn.read(worksheet=s_adhk,rows=18))
     df_adhb.set_index("Komponen", inplace=True)
     df_adhk.set_index("Komponen", inplace=True)
 
