@@ -130,9 +130,10 @@ kodes = ['6100','6101','6102','6103','6104','6105','6106',
 
 kode = st.selectbox('Pilih kabupaten', kodes, index=0)
 st.session_state["kode"] = kode
-conn = st.connection("gsheets", type=GSheetsConnection)
+
 
 if f'df_adhb_q_{kode}' not in st.session_state:
+    conn = st.connection("gsheets", type=GSheetsConnection)
     with st.spinner(text="Loading data..."):
         for kode in kodes:
             loading_first(kode,conn)
