@@ -125,8 +125,7 @@ def loading_first(kode,_conn):
     if f'yy_y_diff_{kode}' not in st.session_state:
         st.session_state[f'yy_y_diff_{kode}'] = yy_y_diff
 # Load data
-kodes = ['6100','6101','6102','6103','6104','6105','6106',
-         '6107','6108','6109','6110','6111','6112','6171','6172']
+kodes = ['6100','6101']
 
 kode = st.selectbox('Pilih kabupaten', kodes, index=0)
 st.session_state["kode"] = kode
