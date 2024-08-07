@@ -1,18 +1,20 @@
 import streamlit as st 
 from st_aggrid import AgGrid
 import pandas as pd
-import st_aggrid
-from streamlit_gsheets import GSheetsConnection
 import io
 
 # buffer to use for excel writer
 buffer = io.BytesIO()
-def loading_first(kode,_conn):
+real_cols = ["1. Konsumsi Rumah Tangga","    1.a. Makanan, Minuman, dan Rokok","    1.b. Pakaian dan Alas Kaki","    1.c. Perumahan, Perkakas, Perlengkapan dan Penyelenggaraan Rumah Tangga", 
+"    1.d. Kesehatan dan Pendidikan","    1.e. Transportasi, Komunikasi, Rekreasi, dan Budaya","    1.f. Hotel dan Restoran","    1.g. Lainnya"
+,"2. Konsumsi Lembaga Nonprofit yang Melayani Rumah Tangga","3. Konsumsi Pemerintah",
+"4. Pembentukan Modal Tetap Bruto (4.a. + 4.b.)","    4.a. Bangunan","    4.b. Non-Bangunan",
+"5. Perubahan Inventori","6. Ekspor","7. Impor","PDRB" 
+]
+def loading_first(kode,df_adhb,df_adhk):
     
     s_adhb = f'{kode}_adhb' 
     s_adhk = f'{kode}_adhk'
-    df_adhb = pd.DataFrame(_conn.read(worksheet=s_adhb,rows=18))
-    df_adhk = pd.DataFrame(_conn.read(worksheet=s_adhk,rows=18))
     df_adhb.set_index("Komponen", inplace=True)
     df_adhk.set_index("Komponen", inplace=True)
 
@@ -51,6 +53,10 @@ def loading_first(kode,_conn):
     cc_diff['year'] = cc_diff.index.str[:4]
     cc_diff = sog(cc_diff.groupby('year').cumsum().diff(periods=4).round(2),cc)
     
+    if f'df_adhb_{kode}' not in st.session_state:
+        st.session_state[f'df_adhb_{kode}'] = df_adhb
+    if f'df_adhk_{kode}' not in st.session_state:
+        st.session_state[f'df_adhk_{kode}'] = df_adhk
     if f'df_adhb_q_{kode}' not in st.session_state:
         st.session_state[f'df_adhb_q_{kode}'] = df_adhb_q
     if f'df_adhk_q_{kode}' not in st.session_state:
@@ -108,11 +114,26 @@ kode = st.selectbox('Pilih kabupaten', kodes, index=0)
 st.session_state["kode"] = kode
 
 if f'df_adhb_q_{kode}' not in st.session_state:
-    with st.spinner(text="Loading data..."):
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        for kode in kodes:
-            loading_first(kode,conn)
+    conn = st.connection('mysql', type='sql')
+    df = conn.query('SELECT * from pdrb;')
+    adhk = df[df.tipe == "adhk"]
+    adhb = df[df.tipe == "adhb"]
+    for kode in kodes:
+        adhk_temp = adhk[adhk.kode == int(kode)].drop(["kode","tipe"],axis = 1).set_index("periode")
+        adhb_temp = adhb[adhb.kode == int(kode)].drop(["kode","tipe"],axis = 1).set_index("periode")
+        adhk_temp.columns = real_cols
+        adhb_temp.columns = real_cols
+        adhk_temp = adhk_temp.T.reset_index().rename(columns = {"index":"Komponen"})
+        adhb_temp = adhb_temp.T.reset_index().rename(columns = {"index":"Komponen"})
+        loading_first(kode,adhb_temp,adhk_temp)
 
+all_table_nt = [f'df_adhb_q_{kode}',f'df_adhk_q_{kode}',f'df_adhb_y_{kode}',f'df_adhk_y_{kode}',f'impli_q_{kode}',f'impli_y_{kode}'
+             ]
+
+all_table_t = [f'qq_{kode}',f'yy_{kode}',
+             f'cc_{kode}',f'qq_y_{kode}',f'imp_qq_{kode}',f'imp_yy_{kode}',f'imp_cc_{kode}',
+             f'imp_qq_y_{kode}',f'qq_diff_{kode}',f'yy_diff_{kode}',f'cc_diff_{kode}',f'qq_diff_{kode}'
+             ]
 
 table_pdrb = {
   "Tabel 1. PDRB ADHB Menurut Pengeluaran (Triwulan)": st.session_state[f'df_adhb_q_{kode}'],
@@ -160,7 +181,7 @@ st.dataframe(df_show,height= int(35.2*(len(df_show)+1)))
 def convert_df(df):
    return df.to_csv().encode('utf-8')
 
-col1, col2 , col3 , col4 , col5, col6 = st.columns(6)
+col1, col2 , col3 , col4 = st.columns(4)
 
 with col1:
     csv = convert_df(df_show)
@@ -180,5 +201,22 @@ with col2:
             label="Download as Excel",
             data=buffer,
             file_name= f'{table_selected} {kode}.xlsx',
+            mime='application/vnd.ms-excel'
+        )
+with col3:
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        # Write each dataframe to a different worksheet.
+        for sheet in all_table_nt:
+             df = st.session_state[sheet]
+             df.filter(regex = rexy,axis =1).to_excel(writer, sheet_name=sheet)
+
+        for sheet in all_table_t:
+             df = st.session_state[sheet]
+             df.T.filter(regex = rexy,axis =1).to_excel(writer, sheet_name=sheet)
+        writer.save()
+        download2 = st.download_button(
+            label="Download All Tables",
+            data=buffer,
+            file_name= f'Tabel turunan PDRB {kode}.xlsx',
             mime='application/vnd.ms-excel'
         )
