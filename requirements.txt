@@ -8,5 +8,5 @@ SQLAlchemy==2.0.21
 streamlit==1.37.0
 streamlit_authenticator==0.3.2
 streamlit_elements==0.1.0
-mysqlclient == 2.2.4
+mysqlclient < 2.2.4
 xlrd < 2.0
