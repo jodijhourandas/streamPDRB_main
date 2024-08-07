@@ -3,12 +3,10 @@ from st_aggrid import AgGrid
 from st_aggrid.grid_options_builder import GridOptionsBuilder
 from st_aggrid.shared import GridUpdateMode, JsCode
 import pandas as pd
-import os
 from scipy.stats import norm,uniform
 import plotly.graph_objects as go
 import json
 from streamlit_elements import elements, mui, html, nivo, sync, event
-import random
 from sqlalchemy.sql import text
 users = ['6100','6101','6102','6103','6104','6105','6106',
          '6107','6108','6109','6110','6111','6112','6171','6172']
@@ -644,7 +642,7 @@ def plotCompare(edit_df,list_growth):
     fig.update_layout(barmode='group', xaxis_tickangle=-90, yaxis=dict(autorange='reversed'))
     st.plotly_chart(fig, use_container_width=True)
 
-st.fragment
+
 def pdrbCalculator(df):
     with st.form("calculator"):
         col1,col2,col3 = st.columns(3)
