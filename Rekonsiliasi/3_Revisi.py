@@ -9,7 +9,7 @@ import json
 from streamlit_elements import elements, mui, html, nivo, sync, event
 from sqlalchemy.sql import text
 
-st.write("test")
+
 users = ['6100','6101','6102','6103','6104','6105','6106',
          '6107','6108','6109','6110','6111','6112','6171','6172']
 user = st.selectbox("User :",users, index=0)
