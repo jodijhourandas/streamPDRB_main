@@ -169,22 +169,13 @@ def decisionL(vec, code):
             temp.append("")
     return temp
 
-def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk):
+def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk,tahun, tw):
     #Parameter
     
     #Provinsi
     st.subheader('Evaluasi Provinsi', divider='rainbow')
     #Rank evaluation
     conn = st.connection('mysql', type='sql',ttl = 0 )
-
-    for kode in kodes:
-        adhk_temp = adhk[adhk.kode == int(kode)].drop(["kode","tipe"],axis = 1).set_index("periode")
-        adhb_temp = adhb[adhb.kode == int(kode)].drop(["kode","tipe"],axis = 1).set_index("periode")
-        adhk_temp.columns = real_cols
-        adhb_temp.columns = real_cols
-        adhk_temp = adhk_temp.T.reset_index().rename(columns = {"index":"Komponen"})
-        adhb_temp = adhb_temp.T.reset_index().rename(columns = {"index":"Komponen"})
-        loading_first(kode,adhb_temp,adhk_temp)
     adhk_ptrn = getDataStreamDetail(conn,"adhk",2024,1,1)
     adhb_ptrn = getDataStreamDetail(conn,"adhb",2024,1,1)
     adhk_kab = getDataStream(conn,"adhk",2024,1,1,"kab")
@@ -198,15 +189,28 @@ def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk):
         adhk_temp = adhk_temp.T.reset_index().rename(columns = {"index":"Komponen"})
         adhb_temp = adhb_temp.T.reset_index().rename(columns = {"index":"Komponen"})
         if kode == "6100":
-            adhk_temp["2024Q1"] = adhk_kab.T.values
-            adhb_temp["2024Q1"] = adhb_kab.T.values
+            adhk_temp[f"{tahun}Q{tw}"] = adhk_ptrn[adhk_ptrn.kode == int(kode)].drop("kode",axis =1).T.values
+            adhb_temp[f"{tahun}Q{tw}"] = adhb_ptrn[adhb_ptrn.kode == int(kode)].drop("kode",axis =1).T.values
+        loading_first(kode,adhb_temp,adhk_temp)
+
+
+    for kode in kodes:
+        adhk_temp = adhk[adhk.kode == int(kode)].drop(["kode","tipe"],axis = 1).set_index("periode")
+        adhb_temp = adhb[adhb.kode == int(kode)].drop(["kode","tipe"],axis = 1).set_index("periode")
+        adhk_temp.columns = real_cols
+        adhb_temp.columns = real_cols
+        adhk_temp = adhk_temp.T.reset_index().rename(columns = {"index":"Komponen"})
+        adhb_temp = adhb_temp.T.reset_index().rename(columns = {"index":"Komponen"})
+        if kode == "6100":
+            adhk_temp[f"{tahun}Q{tw}"] = adhk_kab.T.values
+            adhb_temp[f"{tahun}Q{tw}"] = adhb_kab.T.values
         else:
-            adhk_temp["2024Q1"] = adhk_ptrn[adhk_ptrn.kode == int(kode)].drop("kode",axis =1).T.values
-            adhb_temp["2024Q1"] = adhb_ptrn[adhb_ptrn.kode == int(kode)].drop("kode",axis =1).T.values
+            adhk_temp[f"{tahun}Q{tw}"] = adhk_ptrn[adhk_ptrn.kode == int(kode)].drop("kode",axis =1).T.values
+            adhb_temp[f"{tahun}Q{tw}"] = adhb_ptrn[adhb_ptrn.kode == int(kode)].drop("kode",axis =1).T.values
 
         loading_first(f'{kode}_rev',adhb_temp,adhk_temp)
 
-
+    
     #Create bump chart
     st.markdown("**Bump Chart Evaluasi Ranking Komponen PDRB**")
     komp_selected = st.selectbox("Komponen :",real_cols,index=16)
@@ -267,7 +271,7 @@ def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk):
     #st.markdown("**Tabel Indikator Pertumbuhan Ekonomi**")
     seams = ["qq_","yy_","cc_","imp_yy_","imp_qq_","imp_cc_"]
     #selected = st.selectbox('Pilih mode', list(seam_dict.keys()), index=0)
-    selected = seam_dict["Q-to-Q"]
+    selected = seam_dict["Y-on-Y"]
     for seam in seams:
         fin = pd.DataFrame()
         temp = st.session_state[f"{seam}6100"].T.iloc[:,-1:]
@@ -283,20 +287,20 @@ def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk):
 
 
 
-    df_prob = pd.DataFrame()
-    for idx in range(17):
-        datas = st.session_state[f"{selected}_rec"]
-        mean = datas.iloc[idx,0]
-        vec = datas.iloc[idx,2:].values
-        coln = datas.index[idx]
-        if probdis == "Normal":
-            t_prob = pd.DataFrame({coln : norm(mean, sd).cdf(vec)})
-        else:
-            t_prob = pd.DataFrame({coln : uniform(mean-sd, 2*sd).cdf(vec)})
-        df_prob  = pd.concat([df_prob,t_prob], axis =1)
+    # df_prob = pd.DataFrame()
+    # for idx in range(17):
+    #     datas = st.session_state[f"{selected}_rec"]
+    #     mean = datas.iloc[idx,0]
+    #     vec = datas.iloc[idx,2:].values
+    #     coln = datas.index[idx]
+    #     if probdis == "Normal":
+    #         t_prob = pd.DataFrame({coln : norm(mean, sd).cdf(vec)})
+    #     else:
+    #         t_prob = pd.DataFrame({coln : uniform(mean-sd, 2*sd).cdf(vec)})
+    #     df_prob  = pd.concat([df_prob,t_prob], axis =1)
 
-    df_prob = df_prob.T
-    df_prob.columns = datas.columns[2:]
+    # df_prob = df_prob.T
+    # df_prob.columns = datas.columns[2:]
 
 
 
@@ -685,12 +689,12 @@ if status == "uploading":
 if (user == '6100')&(status == "revisi provinsi"):
     if st.button("Edit Parameter Rekonsiliasi...", type="primary"):
         edit_parameter(conn,tahun,triwulan,ptrn,probdis,sd,desk,isdesk)
-    rekonprovinsi(kabs,adhb,adhk,probdis,sd,desk,isdesk)
+    rekonprovinsi(kabs,adhb,adhk,probdis,sd,desk,isdesk,tahun,triwulan)
 if (user == '6100')&(status == "revisi kabupaten"):
-    rekonprovinsi(kabs,adhb,adhk,probdis,sd,desk,isdesk)
+    rekonprovinsi(kabs,adhb,adhk,probdis,sd,desk,isdesk,tahun,triwulan)
 if (user != '6100')&(status == "revisi kabupaten"):
     
-    df_res,df_eval,df = rekonprovinsi([user],adhb,adhk,probdis,sd,desk,isdesk)
+    df_res,df_eval,df = rekonprovinsi([user],adhb,adhk,probdis,sd,desk,isdesk,tahun,triwulan)
 
     st.subheader('Simulasi Rekonsiliasi : ', divider='rainbow')
     st.markdown("**PDRB Previous :**")
