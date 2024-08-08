@@ -13,6 +13,7 @@ from sqlalchemy.sql import text
 users = ['6100','6101','6102','6103','6104','6105','6106',
          '6107','6108','6109','6110','6111','6112','6171','6172']
 user = st.selectbox("User :",users, index=0)
+
 #Definition
 real_cols = ["1. Konsumsi Rumah Tangga","    1.a. Makanan, Minuman, dan Rokok","    1.b. Pakaian dan Alas Kaki","    1.c. Perumahan, Perkakas, Perlengkapan dan Penyelenggaraan Rumah Tangga", 
 "    1.d. Kesehatan dan Pendidikan","    1.e. Transportasi, Komunikasi, Rekreasi, dan Budaya","    1.f. Hotel dan Restoran","    1.g. Lainnya"
@@ -171,17 +172,17 @@ def decisionL(vec, code):
             temp.append("")
     return temp
 
-def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk,tahun, tw):
+def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk,tahun, tw,putaran):
     #Parameter
     
     #Provinsi
     st.subheader('Evaluasi Provinsi', divider='rainbow')
     #Rank evaluation
     conn = st.connection('mysql', type='sql',ttl = 0 )
-    adhk_ptrn = getDataStreamDetail(conn,"adhk",2024,1,1)
-    adhb_ptrn = getDataStreamDetail(conn,"adhb",2024,1,1)
-    adhk_kab = getDataStream(conn,"adhk",2024,1,1,"kab")
-    adhb_kab = getDataStream(conn,"adhb",2024,1,1,"kab")
+    adhk_ptrn = getDataStreamDetail(conn,"adhk",tahun,putaran,tw)
+    adhb_ptrn = getDataStreamDetail(conn,"adhb",tahun,putaran,tw)
+    adhk_kab = getDataStream(conn,"adhk",tahun,putaran,tw,"kab")
+    adhb_kab = getDataStream(conn,"adhb",tahun,putaran,tw,"kab")
 
     for kode in kodes:
         adhk_temp = adhk[adhk.kode == int(kode)].drop(["kode","tipe"],axis = 1).set_index("periode")
@@ -223,9 +224,10 @@ def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk,tahun, tw):
         temp["id"] = kb
         df_bump  = pd.concat([df_bump,temp],axis=1, ignore_index=True)
     df_bump = df_bump.T
+
     df_bump.set_index("id", inplace=True)
 
-    
+
 
     df_rank = create_rankings(df_bump)
     list_js = []
@@ -247,19 +249,49 @@ def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk,tahun, tw):
                     axisBottom = {"tickRotation": 90}
                     )
 
+    df_bump_gr = pd.DataFrame()
+    for kb in kabs:
+        temp = st.session_state[f'yy_{kb}_rev'].T.loc[komp_selected]
+        temp["id"] = kb
+        df_bump_gr  = pd.concat([df_bump_gr,temp],axis=1, ignore_index=True)
+    df_bump_gr = df_bump_gr.T
+    
+    df_bump_gr.set_index("id", inplace=True)
+
+    st.markdown("**Bump Chart Evaluasi Ranking Growth Y-On-Y**")
+    df_rank_gr = create_rankings(df_bump_gr)
+    list_js_gr = []
+    for i, kn in enumerate(kabs):
+        js_bump = df_rank_gr.iloc[i,:].reset_index()
+        id = js_bump.columns[1]
+        js_bump.columns = ["x","y"]
+        series =  {
+        "id": id,
+        "data": json.loads(js_bump.to_json(orient="records"))}
+        list_js_gr.append(series)
+
+    
+    with elements("bump_2"): 
+        with mui.Box(sx={"height": 400 }):
+            nivo.Bump(data = list_js_gr,  endLabel = True,pointBorderWidth =1,pointSize = 10,activeLineWidth = 5,
+                    activePointSize= 14, colors = {"scheme":"red_yellow_blue"},
+                    endLabelPadding=0,xOuterPadding = 1,yOuterPadding= 1,margin = {"left": 40,"right": 40,"bottom":55},
+                    axisBottom = {"tickRotation": 90}
+                    )
+
     #Data evaluation deskrepansi
     st.markdown("**Tabel Diskrepansi PDRB Kabupaten dan Provinsi**")
-    adhk_kab = getDataStream(conn,"adhk",2024,1,1,"kab")
-    adhb_kab = getDataStream(conn,"adhb",2024,1,1,"kab")
-    adhk_prov = getDataStream(conn,"adhk",2024,1,1,"prov")
-    adhb_prov = getDataStream(conn,"adhb",2024,1,1,"prov")
+    adhk_kab = getDataStream(conn,"adhk",tahun,putaran,tw,"kab")
+    adhb_kab = getDataStream(conn,"adhb",tahun,putaran,tw,"kab")
+    adhk_prov = getDataStream(conn,"adhk",tahun,putaran,tw,"prov")
+    adhb_prov = getDataStream(conn,"adhb",tahun,putaran,tw,"prov")
 
     df = pd.concat([adhb_kab,adhb_prov,adhk_kab,adhk_prov],axis = 1)
     df.index = real_cols
     df.columns = ["adhb_kab","adhb_prov","adhk_kab","adhk_prov"]
+    df["desk_adhb"] = 100*(df["adhb_kab"]-df["adhb_prov"])/df["adhb_prov"]
+    df["desk_adhk"] = 100*(df["adhk_kab"]-df["adhk_prov"])/df["adhk_prov"]
 
-    df["desk_adhk"] = 100*(df["adhk_prov"]-df["adhk_kab"])/df["adhk_prov"]
-    df["desk_adhb"] = 100*(df["adhb_prov"]-df["adhb_kab"])/df["adhb_prov"]
 
     bol_adhb = ((df.desk_adhb>=desk) | (df.desk_adhb<=-desk))
     bol_adhk = ((df.desk_adhk >=desk) | (df.desk_adhk <=-desk))
@@ -341,7 +373,6 @@ def rekonprovinsi(daftar_kab,adhb,adhk,probdis,sd,desk,isdesk,tahun, tw):
                         labels=[True,False]
                         )
         st.session_state[f"{seam}_direct"] = df_direct
-
 
 
 
@@ -467,11 +498,9 @@ def simulate_ptrn(edit_df,adhk,adhb,kab,df):
     adhb_temp.columns = real_cols
     adhk_temp = adhk_temp.T.reset_index().rename(columns = {"index":"Komponen"})
     adhb_temp = adhb_temp.T.reset_index().rename(columns = {"index":"Komponen"})
-    adhk_temp["2024Q1"] = edit_df["ADHK New"].values
-    adhb_temp["2024Q1"] = edit_df["ADHB New"].values
-    
-    print(adhk_temp["2024Q1"])
-    print(edit_df["ADHK New"])
+    adhk_temp[f"{tahun}Q{triwulan}"] = edit_df["ADHK New"].values
+    adhb_temp[f"{tahun}Q{triwulan}"] = edit_df["ADHB New"].values
+
     loading_first(f'{kab}_rev_sim',adhb_temp,adhk_temp)
 
     #st.dataframe( st.session_state[f"df_adhk_q_{kab}_rev_sim"])
@@ -669,6 +698,8 @@ def pdrbCalculator(df):
         if submitted:
             st.write("slider")
 #Check monitoring
+pd.options.display.float_format = '${:,.2f}'.format
+
 conn = st.connection('mysql', type='sql',ttl = 0)
 df_putaran = conn.query('SELECT * from putaran;', ttl=0)
 st.session_state["putaran"] = df_putaran
@@ -691,12 +722,12 @@ if status == "uploading":
 if (user == '6100')&(status == "revisi provinsi"):
     if st.button("Edit Parameter Rekonsiliasi...", type="primary"):
         edit_parameter(conn,tahun,triwulan,ptrn,probdis,sd,desk,isdesk)
-    rekonprovinsi(kabs,adhb,adhk,probdis,sd,desk,isdesk,tahun,triwulan)
+    rekonprovinsi(kabs,adhb,adhk,probdis,sd,desk,isdesk,tahun,triwulan,ptrn)
 if (user == '6100')&(status == "revisi kabupaten"):
-    rekonprovinsi(kabs,adhb,adhk,probdis,sd,desk,isdesk,tahun,triwulan)
+    rekonprovinsi(kabs,adhb,adhk,probdis,sd,desk,isdesk,tahun,triwulan,ptrn)
 if (user != '6100')&(status == "revisi kabupaten"):
     
-    df_res,df_eval,df = rekonprovinsi([user],adhb,adhk,probdis,sd,desk,isdesk,tahun,triwulan)
+    df_res,df_eval,df = rekonprovinsi([user],adhb,adhk,probdis,sd,desk,isdesk,tahun,triwulan,ptrn)
 
     st.subheader('Simulasi Rekonsiliasi : ', divider='rainbow')
     st.markdown("**PDRB Previous :**")
